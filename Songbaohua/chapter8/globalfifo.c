@@ -27,12 +27,13 @@
 #endif
 
 #include <asm/uaccess.h>
+#include <linux/poll.h>
 
 #define GLOBALFIFO_SIZE      0x1000            /*  全局内存最大4K字节          */
-//#define MEM_CLEAR           0x1               /*  清0全局内存                 */
+#define MEM_CLEAR           0x1               /*  清0全局内存                 */
 #define GLOBALFIFO_MAJOR     230               /*  预设的globalfifo的主设备号   */
-#define GLOBALFIFO_MAGIC     'g'
-#define MEM_CLEAR	    _IO(GLOBALFIFO_MAGIC, 0)
+//#define GLOBALFIFO_MAGIC     'g'
+//#define MEM_CLEAR	    _IO(GLOBALFIFO_MAGIC, 0)
 
 /*  globalfifo的设备号   */
 static int globalfifo_major = GLOBALFIFO_MAJOR;
@@ -81,7 +82,7 @@ static int globalfifo_ioctl(
 #else
 //long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
 //long (*compat_ioctl) (struct file *file, unsigned int cmd, unsigned long arg)
-static long globalfifo_compat_ioctl(
+static long globalfifo_unlocked_ioctl(
         struct file *filp,
         unsigned int cmd,
         unsigned long arg)
@@ -292,10 +293,34 @@ static loff_t globalfifo_llseek(
     return ret;
 }
 
+static unsigned int globalfifo_poll(struct file *filp, poll_table *wait)
+{
+    unsigned int mask = 0;
+    struct globalfifo_dev *dev = filp->private_data;
+
+    mutex_lock(&dev->mutex);
+    
+    poll_wait(filp, &dev->r_wait, wait);
+    poll_wait(filp, &dev->w_wait, wait);
+
+    if (dev->current_len !=0) {
+        mask |= POLLIN | POLLRDNORM;
+    }
+
+    if (dev->current_len != GLOBALFIFO_SIZE) {
+        mask |= POLLOUT | POLLWRNORM;
+    }
+
+    mutex_unlock(&dev->mutex);
+
+    return mask;
+}
+
 /*文件操作结构体*/
 static const struct file_operations globalfifo_fops =
 {
     .owner = THIS_MODULE,
+    .poll = globalfifo_poll,
     .llseek = globalfifo_llseek,
     .read = globalfifo_read,
     .write = globalfifo_write,
@@ -304,7 +329,7 @@ static const struct file_operations globalfifo_fops =
     .ioctl = globalfifo_ioctl,
 #else
     //.unlocked_ioctl = globalfifo_ioctl,
-    .compat_ioctl = globalfifo_compat_ioctl,
+    .unlocked_ioctl = globalfifo_unlocked_ioctl,
 #endif
 
     .open = globalfifo_open,
