@@ -5,6 +5,7 @@ obj-m += module_sample1.o
 obj-m += module_sample2.o
 obj-m += module_sample3.o
 obj-m += module_sample4.o
+obj-m += module_sample5.o
 
 all:
 	make -C $(KERN_DIR) M=`pwd` modules
