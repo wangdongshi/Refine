@@ -1,24 +1,30 @@
 #include "apue.h"
 #include "sys/msg.h"
 
+typedef struct msgbuf
+{
+	long mtype;
+	char mdata[100];
+} msg_t;
+
 int main(void)
 {
-	key_t key = ftok("./my_msq", 0);
-	printf("Message queue key = [%x]\n", key);
-
-	int msgid = msgget(key, 0);
+	msg_t msg;
+	
+	int msgid = msgget((key_t)1234, IPC_EXCL);
 	if (msgid == -1) {
-		printf("Get message key error!\n");
-		exit(-1);
+		msgid = msgget((key_t)1234, IPC_CREAT);
+		if (msgid == -1) {
+			printf("Create message queue error!\n");
+			exit(-1);
+		}
 	}
 	
+	msg.mtype = 1;
 	while (1) {
-		char buf[100] = {};
-		long msg_type = 0;
-		int  r_cnt_flag = 0;
-		int res = msgrcv(msgid, buf, sizeof(buf), msg_type, r_cnt_flag);
-		if (!res) {
-			printf("Message = '%s'.\n", buf);
+		int res = msgrcv(msgid, &msg, 100, msg.mtype, 0);
+		if (res >= 0) {
+			printf("Message = '%s'.\n", msg.mdata);
 		}
 	}
 

@@ -1,6 +1,7 @@
 #include "apue.h"
 #include "sys/ipc.h"
 #include "sys/msg.h"
+#include "errno.h" 
 
 typedef struct msgbuf
 {
@@ -11,26 +12,30 @@ typedef struct msgbuf
 int main(void)
 {
 	msg_t msg;
-	key_t key = ftok("./my_msq", 0);
-	printf("Message queue key = [%x]\n", key);
-
-	int msgid = msgget(key, IPC_CREAT);
+	
+	int msgid = msgget((key_t)1234, IPC_EXCL);
 	if (msgid == -1) {
-		printf("Create message queue error!\n");
-		exit(-1);
+		msgid = msgget((key_t)1234, IPC_CREAT);
+		if (msgid == -1) {
+			printf("Create message queue error!\n");
+			exit(-1);
+		}
 	}
 	
-	msg.mtype = getpid();
+	msg.mtype = 1;
 	strcpy(msg.mdata, "Test message.");
 
 	while (1) {
-		int res = msgsnd(msgid, &msg, sizeof(msg), 0);
-		if (res == -1) {
-			printf("Send message error!\n");
+		int res = msgsnd(msgid, (void*)&msg, 100, 0);
+		if (res < 0) {
+			printf("Send message error. ERROR_NO=%d[%s]\n", errno, strerror(errno));
 			exit(-1);
 		}
-		sleep(1);
+		printf("Send a message '%s'.\n", msg.mdata);
+		sleep(3);
 	}
+	
+	msgctl(msgid, IPC_RMID, 0);
 
 	exit(0);
 }
